@@ -10,19 +10,26 @@ import com.aliucord.patcher.*
 
 @AliucordPlugin(requiresRestart = false)
 class StartupSound : Plugin() {
-	init {
-		settingsTab = SettingsTab(PluginSettings::class.java).withArgs(settings)
-	}
+    private var mediaPlayer: MediaPlayer? = null
+    
+    init {
+        settingsTab = SettingsTab(PluginSettings::class.java).withArgs(settings)
+    }
+    
     override fun start(context: Context) {
         startupdiscord()
     }
 
-val sonido = settings.getString("sonido", "https://github.com/OmegaSunkey/awesomeplugins/blob/main/Discord%20Startup%20Sound%20HQ.mp3?raw=true")
+    private val defaultSoundUrl = "https://github.com/OmegaSunkey/awesomeplugins/blob/main/Discord%20Startup%20Sound%20HQ.mp3?raw=true"
 
-private fun startupdiscord() {
+    private fun startupdiscord() {
         try {
+            releaseMediaPlayer()
+            
+            val sonido = settings.getString("sonido", defaultSoundUrl)
+            
             Utils.threadPool.execute {
-                MediaPlayer().apply {
+                mediaPlayer = MediaPlayer().apply {
                     setAudioAttributes(
                         AudioAttributes.Builder()
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -30,17 +37,33 @@ private fun startupdiscord() {
                             .build()
                     )
                     setDataSource(sonido)
+                    
+                    setOnCompletionListener {
+                        releaseMediaPlayer()
+                    }
+                    
                     prepare()
                     start()
                 }
             }
         } catch (e: Throwable) {
             logger.error("UNABLE to play audio", e)
+            releaseMediaPlayer()
+        }
+    }
+    
+    private fun releaseMediaPlayer() {
+        mediaPlayer?.let {
+            if (it.isPlaying) {
+                it.stop()
+            }
+            it.release()
+            mediaPlayer = null
         }
     }
 
     override fun stop(context: Context) {
-        // Remove all patches
+        releaseMediaPlayer()
         patcher.unpatchAll()
     }
-} // literally c+p from animal's repo lmao how do i build on github help
+}
